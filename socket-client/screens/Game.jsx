@@ -8,9 +8,10 @@ export const Game = ({ socket, name, room }) => {
   const [turnCount, setTurnCount] = useState(0);
   const [players, setPlayers] = useState([]);
   const [anchorEl, setAnchorEl] = useState(null);
-  
+  const [chosenAction, setChosenAction] = useState(null);
+  const [turnLogs, setTurnLogs] = useState([]);
+
   const open = Boolean(anchorEl);
-  
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -21,6 +22,7 @@ export const Game = ({ socket, name, room }) => {
 
     const handleNextTurn = ({ turnCount }) => {
       setTurnCount(turnCount);
+      setChosenAction(null); // Clear action at new turn
     };
 
     const handleRejoin = (gameState) => {
@@ -31,11 +33,16 @@ export const Game = ({ socket, name, room }) => {
       setPlayers(playersList);
     };
 
+    const handleTurnLog = (message) => {
+      setTurnLogs((prevLogs) => [...prevLogs, message]);
+    };
+
     socket.on("next-turn", handleNextTurn);
     socket.on("rejoin-game", handleRejoin);
     socket.on("players-update", updatePlayers);
+    socket.on("turn-log", handleTurnLog);
 
-    // Ask server for the current turn and rejoin state when component mounts
+    // Ask server for current game state
     socket.emit("get-current-turn", room, name);
     socket.emit("get-players", room);
 
@@ -43,6 +50,7 @@ export const Game = ({ socket, name, room }) => {
       socket.off("next-turn", handleNextTurn);
       socket.off("rejoin-game", handleRejoin);
       socket.off("players-update", updatePlayers);
+      socket.off("turn-log", handleTurnLog);
     };
   }, [socket, room, name, navigate]);
 
@@ -52,7 +60,15 @@ export const Game = ({ socket, name, room }) => {
 
   const closeAttackMenu = (targetName) => {
     setAnchorEl(null);
-    socket.emit("send-command", room, name, "attack", targetName);
+    if (targetName) {
+      setChosenAction({ type: "attack", target: targetName });
+      socket.emit("send-command", room, name, "attack", targetName);
+    }
+  };
+
+  const chooseDefend = () => {
+    setChosenAction({ type: "defend", target: name });
+    socket.emit("send-command", room, name, "defend", name);
   };
 
   const leaveGame = () => {
@@ -66,19 +82,32 @@ export const Game = ({ socket, name, room }) => {
         <p>Game Room: {room}</p>
         <h2>Turn: {turnCount}</h2>
         <h2>You: {name}</h2>
+        <div style={{ fontSize: "14px", marginTop: "10px", color: "#ccc" }}>
+          {turnLogs.map((log, index) => (
+            <div key={index}>{log}</div>
+          ))}
+        </div>
       </div>
 
       <Players players={players} you={name} />
-      {/* () => socket.emit("attack", room, name) */}
+
       <div className="action-buttons">
         <button className="menu-button" onClick={(e) => openAttackMenu(e)}>
           Attack
         </button>
-        <button className="menu-button" onClick={() => socket.emit("send-command", room, name, "defend", name)}>
+        <button className="menu-button" onClick={chooseDefend}>
           Defend
         </button>
       </div>
-      
+
+      {chosenAction && (
+        <div style={{ color: "lightgreen", marginBottom: "15px", fontSize: "18px" }}>
+          You have chosen your action:{" "}
+          <strong>{chosenAction.type}</strong>
+          {chosenAction.type === "attack" && ` ${chosenAction.target}`}
+        </div>
+      )}
+
       <button className="menu-button" onClick={leaveGame}>
         Leave Game
       </button>
@@ -98,18 +127,23 @@ export const Game = ({ socket, name, room }) => {
           },
         }}
       >
-        {players.map((player) => <MenuItem
-          onClick={() => closeAttackMenu(player.name)}
-          sx={{
-            "&:hover": {
-              opacity: 0.7,
-              transform: "scale(0.95)",
-            },
-            transition: "all 0.2s ease",
-          }}
-        >
-          {player.name}
-        </MenuItem>)}
+        {players
+          .filter((player) => player.name !== name) // Exclude self from the menu
+          .map((player) => (
+            <MenuItem
+              key={player.name}
+              onClick={() => closeAttackMenu(player.name)}
+              sx={{
+                "&:hover": {
+                  opacity: 0.7,
+                  transform: "scale(0.95)",
+                },
+                transition: "all 0.2s ease",
+              }}
+            >
+              {player.name}
+            </MenuItem>
+          ))}
       </Menu>
     </div>
   );

@@ -21,31 +21,46 @@ export const EnterDetails = ({ socket, name, setName, room, setRoom, creating })
 
   useEffect(() => {
     if (!socket) return;
-
+  
     const handleRoomExists = () => {
-      socket.emit("join-room", room, name);
-      navigate(`/lobby/${room}`, { state: { creating: false } });
+      socket.emit("join-room", room, name); // ✅ Do NOT navigate yet
     };
-
+  
+    const handleJoinSuccess = (roomJoined) => {
+      navigate(`/lobby/${roomJoined}`, { state: { creating: false } }); // ✅ Navigate here
+    };
+  
     const handleRoomNotFound = () => {
       alert("Sorry, this room doesn't exist.");
       setRoom("");
     };
-    
+  
+    const handleDuplicateNameError = () => {
+      alert("This name is already taken in this room!");
+      navigate("/join");
+      setRoom("");
+    };
+  
     const handleStartedError = () => {
       alert("Sorry, that game has started!");
       setRoom("");
-    }
-
+    };
+  
     socket.on("room-exists", handleRoomExists);
+    socket.on("join-success", handleJoinSuccess); // ✅ New listener
     socket.on("room-not-found", handleRoomNotFound);
     socket.on("started-error", handleStartedError);
-
+    socket.on("duplicate-name-error", handleDuplicateNameError);
+  
     return () => {
       socket.off("room-exists", handleRoomExists);
+      socket.off("join-success", handleJoinSuccess); // ✅ Cleanup
       socket.off("room-not-found", handleRoomNotFound);
+      socket.off("started-error", handleStartedError);
+      socket.off("duplicate-name-error", handleDuplicateNameError);
     };
-  }, [socket, room, name]);
+  }, [socket, room, name, navigate]);
+  
 
   return (
     <div className="center">

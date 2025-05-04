@@ -10,25 +10,28 @@ let rooms = {};
 /**
  * ROOM STRUCTURE
  * rooms = {
- *   roomId: string,
- *   contents: {
+ *   [roomId]: {
+ *     id: string,
  *     players: [
  *       {
  *         name: string,
  *         socketId: string,
  *         hp: number,
- *         commands: ["attack", "defend", ...]
+ *         commands: string[]
  *       }
  *     ],
+ *     leader: string,
+ *     started: boolean,
+ *     playerTurn: number,
  *     turnCount: number,
- *     actions: [
- *       {
- *         playerName: string,
- *         action: string,
- *         targetName: string
- *       }[]
- *     ]
+ *     actions: Array<Array<{
+ *       playerName: string,
+ *       action: string,
+ *       targetName: string,
+ *       result?: string
+ *     }>>
  *   }
+ * }
  */
 
 function emitNextTurn(roomId) {
@@ -46,9 +49,27 @@ function emitNextTurn(roomId) {
       roomData.playerTurn = nextTurn;
       roomData.turnCount += 1;
       roomData.actions.push([]); // New turn's actions
-      io.to(roomId).emit('next-turn', {
+
+      // Emit turn count and log
+      io.to(roomId).emit("next-turn", {
         turnCount: roomData.turnCount,
       });
+      io.to(roomId).emit("turn-log", `Turn ${roomData.turnCount} has begun`);
+
+      // Log action results from previous turn
+      const previousTurnActions = roomData.actions[roomData.turnCount - 2] || [];
+      previousTurnActions.forEach((action) => {
+        if (action.action === "defend") {
+          io.to(roomId).emit("turn-log", `${action.playerName} defended`);
+        } else if (action.action === "attack") {
+          let msg = `${action.playerName} attacked ${action.targetName}`;
+          if (action.result === "blocked") msg += " (attack was blocked)";
+          else if (action.result === "successful") msg += " (attack successful)";
+          else msg += " (attack failed)";
+          io.to(roomId).emit("turn-log", msg);
+        }
+      });
+
       return;
     }
     nextTurn = (nextTurn + 1) % totalPlayers;
@@ -62,20 +83,26 @@ function processTurn(roomId) {
   const roomData = rooms[roomId];
   const currentActions = roomData.actions[roomData.turnCount - 1];
 
-  // Track who is defending
   const defendingPlayers = new Set();
-  currentActions.forEach(({ playerName, action }) => {
-    if (action === 'defend') {
-      defendingPlayers.add(playerName);
+  currentActions.forEach(action => {
+    if (action.action === 'defend') {
+      defendingPlayers.add(action.playerName);
+      action.result = 'defended';
     }
   });
 
-  // Apply attack damage
-  currentActions.forEach(({ playerName, action, targetName }) => {
-    if (action === 'attack') {
-      const target = roomData.players.find(p => p.name === targetName);
-      if (target && !defendingPlayers.has(targetName)) {
-        target.hp = Math.max(0, target.hp - 1);
+  currentActions.forEach(action => {
+    if (action.action === 'attack') {
+      const target = roomData.players.find(p => p.name === action.targetName);
+      if (target) {
+        if (defendingPlayers.has(action.targetName)) {
+          action.result = 'blocked';
+        } else {
+          target.hp = Math.max(0, target.hp - 1);
+          action.result = 'successful';
+        }
+      } else {
+        action.result = 'invalid';
       }
     }
   });
@@ -101,19 +128,22 @@ io.on('connection', (socket) => {
     console.log(`Room ${room} created by ${playerName}`);
   });
 
-  socket.on('join-room', (room, playerName) => {
+  socket.on("join-room", (room, playerName) => {
     const roomData = rooms[room];
     if (roomData) {
       if (roomData.started) {
-        socket.emit('started-error');
+        socket.emit("started-error");
+      } else if (roomData.players.some(p => p.name === playerName)) {
+        socket.emit("duplicate-name-error");
       } else {
         roomData.players.push({ name: playerName, socketId: socket.id, hp: 3, commands: [] });
         socket.join(room);
-        io.to(room).emit('new-player', roomData.players.map(p => ({ name: p.name, hp: p.hp })));
+        io.to(room).emit("new-player", roomData.players.map(p => ({ name: p.name, hp: p.hp })));
+        socket.emit("join-success", room);
         console.log(`${playerName} joined room ${room}`);
       }
     } else {
-      socket.emit('non-existent-error', 'Room does not exist');
+      socket.emit("non-existent-error");
     }
   });
 
@@ -132,6 +162,7 @@ io.on('connection', (socket) => {
       roomData.started = true;
       roomData.playerTurn = 0;
       roomData.turnCount = 1;
+      roomData.actions = [[]];
       io.to(room).emit('start-confirm');
       console.log(`Room ${room} started by ${name}.`);
       io.to(room).emit('next-turn', {
@@ -165,8 +196,8 @@ io.on('connection', (socket) => {
     roomData.actions[roomData.turnCount - 1].push({ playerName, action, targetName });
 
     if (roomData.actions[roomData.turnCount - 1].length === roomData.players.length) {
-      processTurn(room); // Apply game logic
-      emitNextTurn(room); // Then go to next turn
+      processTurn(room);
+      emitNextTurn(room);
     }
   });
 

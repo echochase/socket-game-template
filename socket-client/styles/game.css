@@ -6,6 +6,8 @@
 }
 
 .action-buttons {
+  margin-top: 100px;
   display: flex;
   gap: 20px;
+  z-index: 50;
 }
