@@ -1,60 +1,44 @@
-import { useEffect, useRef, useState } from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import "../styles/common.css";
+import "./App.css";
+import { HomePage } from "../screens/HomePage";
+import { EnterDetails } from "../screens/EnterDetails";
+import { Lobby } from "../screens/Lobby";
+import { Game } from "../screens/Game";
 import { io } from "socket.io-client";
-import { Lobby } from "../components/Lobby";
-import { Game } from "../components/Game";
-import { EnterDetails } from "../components/EnterDetails";
-import { LandingPage } from "../components/LandingPage";
-import "./App.css"
+import { useEffect, useState } from "react";
 
 export default function App() {
-  const socketRef = useRef();
-  const [step, setStep] = useState(1);
-  const [creating, setCreating] = useState(false);
-  const [name, setName] = useState("");
-  const [room, setRoom] = useState("");
-  const [players, setPlayers] = useState([]);
+  const [socket, setSocket] = useState(null);
+  const [name, setName] = useState(localStorage.getItem("name") || "");
+  const [room, setRoom] = useState(localStorage.getItem("room") || "");
 
   useEffect(() => {
-    socketRef.current = io("http://localhost:3000");
+    const newSocket = io("http://localhost:3000");
+    setSocket(newSocket);
 
-    socketRef.current.on("new-player", (playerList) => {
-      setPlayers(playerList);
-    });
-
-    return () => socketRef.current.disconnect();
+    return () => newSocket.disconnect();
   }, []);
 
+  useEffect(() => {
+    localStorage.setItem("name", name);
+  }, [name]);
+
+  useEffect(() => {
+    localStorage.setItem("room", room);
+  }, [room]);
+
+  const sharedProps = { socket, name, setName, room, setRoom };
+
   return (
-    <div className="center">
-      {step === 1 && <LandingPage {...{ setStep, setCreating }} />}
-      {step === 2 && (
-        <EnterDetails
-          socket={socketRef.current}
-          {...{ name, setName, setStep, room, setRoom, creating }}
-        />
-      )}
-      {step === 3 && (
-        <Lobby
-          socket={socketRef.current}
-          {...{
-            name,
-            creating,
-            room,
-            players,
-            setStep,
-          }}
-        />
-      )}
-      {step === 4 && (
-        <Game
-          socket={socketRef.current}
-          {...{
-            name,
-            room,
-            players,
-          }}
-        />
-      )}
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/create" element={<EnterDetails {...sharedProps} creating={true} />} />
+        <Route path="/join" element={<EnterDetails {...sharedProps} creating={false} />} />
+        <Route path="/lobby/:roomCode" element={<Lobby {...sharedProps} />} />
+        <Route path="/play/:roomCode" element={<Game {...sharedProps} />} />
+      </Routes>
+    </BrowserRouter>
   );
 }

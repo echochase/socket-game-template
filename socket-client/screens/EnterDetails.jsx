@@ -1,48 +1,55 @@
 import { TextField } from "@mui/material";
 import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
-export const EnterDetails = ({ socket, name, setName, setStep, room, setRoom, creating }) => {
+export const EnterDetails = ({ socket, name, setName, room, setRoom, creating }) => {
+  const navigate = useNavigate();
+
   const connectSocket = (e) => {
     e.preventDefault();
     if (!socket || !name.trim()) return;
 
     if (creating) {
-      const newRoom = socket.id; // Use socket.id as unique room
+      const newRoom = socket.id;
       setRoom(newRoom);
-      socket.emit('create-room', newRoom, name);
-      setStep(3);
+      socket.emit("create-room", newRoom, name);
+      navigate(`/lobby/${newRoom}`, { state: { creating: true } });
     } else {
-      socket.emit('check-room', room);
+      socket.emit("check-room", room);
     }
   };
 
   useEffect(() => {
     if (!socket) return;
 
-    const handleRoomExists = (players) => {
-      console.log("Room exists, joining...");
-      socket.emit('join-room', room, name);
-      setStep(3);
+    const handleRoomExists = () => {
+      socket.emit("join-room", room, name);
+      navigate(`/lobby/${room}`, { state: { creating: false } });
     };
 
     const handleRoomNotFound = () => {
       alert("Sorry, this room doesn't exist.");
       setRoom("");
-      setStep(2);
     };
+    
+    const handleStartedError = () => {
+      alert("Sorry, that game has started!");
+      setRoom("");
+    }
 
-    socket.on('room-exists', handleRoomExists);
-    socket.on('room-not-found', handleRoomNotFound);
+    socket.on("room-exists", handleRoomExists);
+    socket.on("room-not-found", handleRoomNotFound);
+    socket.on("started-error", handleStartedError);
 
     return () => {
-      socket.off('room-exists', handleRoomExists);
-      socket.off('room-not-found', handleRoomNotFound);
+      socket.off("room-exists", handleRoomExists);
+      socket.off("room-not-found", handleRoomNotFound);
     };
-  }, [socket, room, name, setStep, setRoom]);
+  }, [socket, room, name]);
 
   return (
     <div className="center">
-      <h1>{creating ? 'Create a Room' : 'Join a Room'}</h1>
+      <h1>{creating ? "Create a Room" : "Join a Room"}</h1>
       <form onSubmit={connectSocket} className="center">
         {!creating && (
           <TextField
@@ -63,9 +70,11 @@ export const EnterDetails = ({ socket, name, setName, setStep, room, setRoom, cr
           sx={muiStyles}
         />
         <div className="horizontal-box" style={{ marginTop: "30px" }}>
-          <button type="button" className="menu-button" onClick={() => setStep(1)}>Back</button>
+          <button type="button" className="menu-button" onClick={() => navigate("/")}>
+            Back
+          </button>
           <button type="submit" className="menu-button">
-            {creating ? 'Create Room' : 'Join Room'}
+            {creating ? "Create Room" : "Join Room"}
           </button>
         </div>
       </form>

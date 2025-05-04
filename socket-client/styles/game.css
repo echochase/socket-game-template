@@ -1,0 +1,11 @@
+.corner-info {
+  position: absolute;
+  top: 15px;
+  left: 35px;
+  text-align: left;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 20px;
+}
