@@ -1,8 +1,15 @@
 .corner-info {
   position: absolute;
-  top: 15px;
-  left: 35px;
+  top: 70px;
+  left: 15px;
   text-align: left;
+  width: 250px;
+  height: 500px;
+  background-color: black;
+  overflow: auto;
+  padding: 15px 30px;
+  border: 2px solid white;
+  border-radius: 10px;
 }
 
 .action-buttons {
@@ -10,4 +17,18 @@
   display: flex;
   gap: 20px;
   z-index: 50;
+}
+
+.game-info {
+  display: flex;
+  gap: 15px;
+  font-size: 25px;
+  width: 250px;
+  position: fixed;
+  top: 15px;
+  left: 15px;
+  border: 2px solid white;
+  padding: 10px 30px;
+  background: #222222;
+  justify-content: center;
 }

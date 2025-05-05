@@ -38,7 +38,7 @@ export const EnterDetails = ({ socket, name, setName, room, setRoom, creating })
     const handleDuplicateNameError = () => {
       alert("This name is already taken in this room!");
       navigate("/join");
-      setRoom("");
+      setName("");
     };
   
     const handleStartedError = () => {

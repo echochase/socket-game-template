@@ -28,7 +28,10 @@ export const Players = ({ players, you }) => {
         } else {
           className += " other";
         }
-
+        if (hp <= 0) {
+          className += " eliminated";
+        }
+        
         return (
           <div key={name} className={className} style={{
             transform: `translate(${x}px, ${y}px)`

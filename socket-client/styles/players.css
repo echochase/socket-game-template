@@ -40,6 +40,10 @@
   border: 3px solid dodgerblue;
 }
 
+.player-tile.eliminated {
+  border: 3px solid gray;
+}
+
 .healthbar {
   display: flex;
   gap: 4px;
